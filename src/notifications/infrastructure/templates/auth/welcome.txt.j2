@@ -1,0 +1,11 @@
+Hola{% if user_name %}, {{ user_name }}{% endif %} — ¡bienvenido a {{ app_name | default('Kenko') }}!
+
+Tu cuenta{% if email %} ({{ email }}){% endif %} fue creada correctamente. Ya puedes acceder al portal de salud para gestionar tus citas, autorizaciones, certificados e historia clínica.
+
+Ingresar al portal: {{ portal_url }}
+
+Si tú no creaste esta cuenta, ignora este mensaje o contáctanos a {{ support_email }}.
+
+---
+Este es un mensaje automático de {{ app_name | default('Kenko') }}, por favor no respondas a este correo.
+© {{ current_year }} {{ app_name | default('Kenko') }} EPS · Colombia
