@@ -8,3 +8,9 @@ crash.*.log
 # Terraform CLI configuration
 .terraformrc
 terraform.rc
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.env
