@@ -21,6 +21,7 @@ from notifications.application.ports.notification_log_repository_port import (
 from notifications.domain.errors import (
     PermanentNotificationError,
     TransientNotificationError,
+    UnsupportedEventError,
 )
 from notifications.domain.notification_log import NotificationLog, NotificationStatus
 from notifications.infrastructure.inbound.sqs.envelope import Envelope, parse_envelope
@@ -29,6 +30,9 @@ from notifications.infrastructure.inbound.sqs.router import EventRouter
 
 logger = logging.getLogger(__name__)
 
+# Evento escuchado por nadie: no hay plantilla propia que reportar.
+UNKNOWN_TEMPLATE = "unknown"
+
 
 class AuthEventsWorker:
     def __init__(
@@ -36,13 +40,11 @@ class AuthEventsWorker:
         poller: SqsPoller,
         router: EventRouter,
         repository: NotificationLogRepositoryPort,
-        template_name: str = "welcome",
         channel: str = "email",
     ) -> None:
         self._poller = poller
         self._router = router
         self._repository = repository
-        self._template_name = template_name
         self._channel = channel
         self._stop = Event()
 
@@ -76,8 +78,17 @@ class AuthEventsWorker:
             self._delete(message)
             return
 
+        # El template_name viene de la RUTA, no del worker: cada evento
+        # reporta su propia plantilla al registrar un fallo.
+        route = self._router.route(envelope)
+        template_name = route.template_name if route else UNKNOWN_TEMPLATE
+
         try:
-            outcome = self._router.dispatch(envelope)
+            if route is None:
+                raise UnsupportedEventError(
+                    f"sin handler para {envelope.source}/{envelope.detail_type}"
+                )
+            outcome = route.handler(envelope)
         except PermanentNotificationError as exc:
             logger.warning(
                 "fallo permanente event_id=%s correlation_id=%s: %s",
@@ -85,7 +96,7 @@ class AuthEventsWorker:
                 envelope.correlation_id,
                 str(exc),
             )
-            if self._record(envelope, NotificationStatus.FAILED):
+            if self._record(envelope, NotificationStatus.FAILED, template_name):
                 self._delete(message)
         except TransientNotificationError as exc:
             logger.warning(
@@ -109,7 +120,7 @@ class AuthEventsWorker:
             )
             self._delete(message)
 
-    def _record(self, envelope: Envelope, status: str) -> bool:
+    def _record(self, envelope: Envelope, status: str, template_name: str) -> bool:
         """Registra el resultado. False => no borrar (no pudimos dejar la traza)."""
         try:
             self._repository.record(
@@ -117,7 +128,7 @@ class AuthEventsWorker:
                     event_id=envelope.event_id,
                     correlation_id=envelope.correlation_id,
                     channel=self._channel,
-                    template=self._template_name,
+                    template=template_name,
                     status=status,
                     created_at=datetime.now(UTC),
                 )

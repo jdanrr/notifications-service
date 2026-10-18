@@ -10,6 +10,9 @@ import boto3
 
 from notifications.application.models import WelcomeBrandConfig
 from notifications.application.use_cases.auth.send_welcome_email import (
+    TEMPLATE_NAME as WELCOME_TEMPLATE,
+)
+from notifications.application.use_cases.auth.send_welcome_email import (
     SendWelcomeEmailUseCase,
 )
 from notifications.domain.notification_log import NotificationLog, NotificationStatus
@@ -82,8 +85,14 @@ def build_worker(settings: Settings) -> AuthEventsWorker:
     )
 
     router = EventRouter()
-    # Para agregar otro evento de Authentication: registrar aqui su handler.
-    router.register("kenko.auth", "UserRegistered", _handler(use_case))
+    # Para agregar otro evento de Authentication: registrar aqui su handler y
+    # la plantilla que debe reportar en notification_log si falla.
+    router.register(
+        "kenko.auth",
+        "UserRegistered",
+        _handler(use_case),
+        template_name=WELCOME_TEMPLATE,
+    )
 
     poller = SqsPoller(
         client=session.client("sqs"),
