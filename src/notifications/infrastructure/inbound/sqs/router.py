@@ -19,6 +19,14 @@ class EventRouter:
     def register(self, source: str, detail_type: str, handler: Handler) -> None:
         self._routes[(source, detail_type)] = handler
 
+    def registered_routes(self) -> set[tuple[str, str]]:
+        """Claves (source, detail_type) que este router escucha.
+
+        La usa el test que compara contra `auth_detail_types` de Terraform,
+        para que ninguno de los dos lados se desincronice en silencio.
+        """
+        return set(self._routes)
+
     def dispatch(self, envelope: Envelope) -> str:
         """Ejecuta el caso de uso correspondiente y devuelve el resultado.
 

@@ -81,9 +81,7 @@ def build_worker(settings: Settings) -> AuthEventsWorker:
         ),
     )
 
-    router = EventRouter()
-    # Para agregar otro evento de Authentication: registrar aqui su handler.
-    router.register("kenko.auth", "UserRegistered", _handler(use_case))
+    router = build_router(use_case)
 
     poller = SqsPoller(
         client=session.client("sqs"),
@@ -93,6 +91,21 @@ def build_worker(settings: Settings) -> AuthEventsWorker:
     )
 
     return AuthEventsWorker(poller=poller, router=router, repository=repository)
+
+
+def build_router(use_case: SendWelcomeEmailUseCase) -> EventRouter:
+    """Registra los eventos de Authentication que Notifications consume.
+
+    Punto unico de declaracion: el test de sincronizacion compara las claves
+    de este router contra `auth_detail_types` en terraform/envs/*.tfvars, asi
+    que un evento enrutado sin handler (o un handler sin enrutamiento) falla
+    el build en vez de descartar eventos en silencio.
+
+    Para agregar un evento nuevo: registrarlo aqui Y en el .tfvars del ambiente.
+    """
+    router = EventRouter()
+    router.register("kenko.auth", "UserRegistered", _handler(use_case))
+    return router
 
 
 def _handler(use_case: SendWelcomeEmailUseCase):
