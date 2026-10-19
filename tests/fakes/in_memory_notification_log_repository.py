@@ -19,3 +19,8 @@ class InMemoryNotificationLogRepository:
     @property
     def sent_event_ids(self) -> set[str]:
         return set(self._sent)
+
+    @property
+    def failures(self) -> list[NotificationLog]:
+        """Registros con status=failed (para assert de motivos)."""
+        return [r for r in self.records if r.status == NotificationStatus.FAILED]

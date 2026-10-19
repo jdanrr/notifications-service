@@ -18,4 +18,6 @@ class NotificationLogRow(Base):
     channel: Mapped[str] = mapped_column(String(16))
     template: Mapped[str] = mapped_column(String(64))
     status: Mapped[str] = mapped_column(String(16))
+    # Motivo del fallo (p. ej. "expired"). NULL en envios exitosos.
+    failure_reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

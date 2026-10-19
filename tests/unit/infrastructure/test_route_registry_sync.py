@@ -18,6 +18,9 @@ from pathlib import Path
 import pytest
 
 from notifications.application.models import WelcomeBrandConfig
+from notifications.application.use_cases.auth.send_password_reset_email import (
+    SendPasswordResetEmailUseCase,
+)
 from notifications.application.use_cases.auth.send_welcome_email import (
     SendWelcomeEmailUseCase,
 )
@@ -44,21 +47,26 @@ def detail_types_from_tfvars(path: Path) -> list[str]:
     return re.findall(r'"([^"]+)"', match.group(1))
 
 
+def build_test_router():
+    """Router real, con adaptadores falsos (sin AWS)."""
+    renderer = JinjaTemplateRenderer()
+    repository = InMemoryNotificationLogRepository()
+    brand = WelcomeBrandConfig(
+        app_name="Kenko",
+        portal_url="https://kenko.example.com",
+        support_email="soporte@kenko.example.com",
+        logo_url="https://cdn.kenko.example.com/img/kenko_limpio.png",
+    )
+    common = dict(renderer=renderer, sender=FakeEmailSender(), repository=repository, brand=brand)
+    return build_router(
+        SendWelcomeEmailUseCase(**common),
+        SendPasswordResetEmailUseCase(**common),
+    )
+
+
 def registered_detail_types() -> set[str]:
     """Detail-types que la aplicacion sabe procesar."""
-    use_case = SendWelcomeEmailUseCase(
-        renderer=JinjaTemplateRenderer(),
-        sender=FakeEmailSender(),
-        repository=InMemoryNotificationLogRepository(),
-        brand=WelcomeBrandConfig(
-            app_name="Kenko",
-            portal_url="https://kenko.example.com",
-            support_email="soporte@kenko.example.com",
-            logo_url="https://cdn.kenko.example.com/img/kenko_limpio.png",
-        ),
-    )
-    router = build_router(use_case)
-    return {detail_type for _, detail_type in router.registered_routes()}
+    return {detail_type for _, detail_type in build_test_router().registered_routes()}
 
 
 def tfvars_files() -> list[Path]:
@@ -104,18 +112,7 @@ def test_fuente_coincide_con_terraform():
     )
     assert match, "no se encontro variable auth_source en terraform/variables.tf"
 
-    use_case = SendWelcomeEmailUseCase(
-        renderer=JinjaTemplateRenderer(),
-        sender=FakeEmailSender(),
-        repository=InMemoryNotificationLogRepository(),
-        brand=WelcomeBrandConfig(
-            app_name="Kenko",
-            portal_url="https://kenko.example.com",
-            support_email="soporte@kenko.example.com",
-            logo_url="https://cdn.kenko.example.com/img/kenko_limpio.png",
-        ),
-    )
-    registered = {source for source, _ in build_router(use_case).registered_routes()}
+    registered = {source for source, _ in build_test_router().registered_routes()}
 
     assert registered == {match.group(1)}, (
         f"router escucha {sorted(registered)} pero Terraform usa {match.group(1)}"

@@ -1,33 +1,28 @@
-"""Worker: loop de consumo con apagado ordenado (SIGTERM via Event en main).
+"""Worker: loop de consumo de SQS con apagado ordenado (SIGTERM via Event).
 
-Politica de borrado del mensaje:
+Solo hace I/O de cola: recibir, decidir el borrado con `Dispatcher` y borrar.
+La idempotencia y la clasificacion de errores viven en
+`application/dispatcher.py`, donde se prueban sin SQS real.
 
-- Exitoso o duplicado   -> se registra (si aplica) y se borra.
-- Fallo permanente      -> se registra en notification_log y se borra.
-- Fallo transitorio     -> NO se registra y NO se borra; SQS reintenta y, al
-                           agotar reintentos (maxReceiveCount), va a la DLQ.
-- Error inesperado      -> mismo tratamiento que transitorio (mas seguro).
+Si el worker muere a mitad de mensaje, SQS reentrega y la idempotencia por
+event_id evita el doble envio.
 """
 
 import logging
-from datetime import UTC, datetime
 from threading import Event
 
 from botocore.exceptions import BotoCoreError, ClientError
 
-from notifications.application.ports.notification_log_repository_port import (
-    NotificationLogRepositoryPort,
-)
-from notifications.domain.errors import (
-    PermanentNotificationError,
-    TransientNotificationError,
-)
-from notifications.domain.notification_log import NotificationLog, NotificationStatus
-from notifications.infrastructure.inbound.sqs.envelope import Envelope, parse_envelope
+from notifications.application.dispatcher import Dispatcher
+from notifications.domain.errors import PermanentNotificationError
+from notifications.infrastructure.inbound.sqs.envelope import parse_envelope
 from notifications.infrastructure.inbound.sqs.poller import SqsPoller, _is_permanent
 from notifications.infrastructure.inbound.sqs.router import EventRouter
 
 logger = logging.getLogger(__name__)
+
+# Evento escuchado por nadie: no hay plantilla propia que reportar.
+UNKNOWN_TEMPLATE = "unknown"
 
 
 class AuthEventsWorker:
@@ -35,15 +30,11 @@ class AuthEventsWorker:
         self,
         poller: SqsPoller,
         router: EventRouter,
-        repository: NotificationLogRepositoryPort,
-        template_name: str = "welcome",
-        channel: str = "email",
+        dispatcher: Dispatcher,
     ) -> None:
         self._poller = poller
         self._router = router
-        self._repository = repository
-        self._template_name = template_name
-        self._channel = channel
+        self._dispatcher = dispatcher
         self._stop = Event()
 
     def stop(self) -> None:
@@ -76,59 +67,29 @@ class AuthEventsWorker:
             self._delete(message)
             return
 
-        try:
-            outcome = self._router.dispatch(envelope)
-        except PermanentNotificationError as exc:
-            logger.warning(
-                "fallo permanente event_id=%s correlation_id=%s: %s",
-                envelope.event_id,
-                envelope.correlation_id,
-                str(exc),
-            )
-            if self._record(envelope, NotificationStatus.FAILED):
-                self._delete(message)
-        except TransientNotificationError as exc:
-            logger.warning(
-                "fallo transitorio, NO se borra event_id=%s correlation_id=%s: %s",
-                envelope.event_id,
-                envelope.correlation_id,
-                str(exc),
-            )
-        except Exception:
-            logger.exception(
-                "error inesperado, NO se borra event_id=%s correlation_id=%s",
-                envelope.event_id,
-                envelope.correlation_id,
-            )
-        else:
-            logger.info(
-                "procesado event_id=%s correlation_id=%s resultado=%s",
-                envelope.event_id,
-                envelope.correlation_id,
-                outcome,
-            )
-            self._delete(message)
+        route = self._router.route(envelope)
+        # El template_name viene de la RUTA: cada evento reporta su propia
+        # plantilla al registrar un fallo.
+        template_name = route.template_name if route else UNKNOWN_TEMPLATE
 
-    def _record(self, envelope: Envelope, status: str) -> bool:
-        """Registra el resultado. False => no borrar (no pudimos dejar la traza)."""
-        try:
-            self._repository.record(
-                NotificationLog(
-                    event_id=envelope.event_id,
-                    correlation_id=envelope.correlation_id,
-                    channel=self._channel,
-                    template=self._template_name,
-                    status=status,
-                    created_at=datetime.now(UTC),
+        def operation() -> str:
+            if route is None:
+                from notifications.domain.errors import UnsupportedEventError
+
+                raise UnsupportedEventError(
+                    f"sin handler para {envelope.source}/{envelope.detail_type}"
                 )
-            )
-            return True
-        except Exception:
-            logger.exception(
-                "no se pudo registrar el fallo, NO se borra event_id=%s",
-                envelope.event_id,
-            )
-            return False
+            return route.handler(envelope)
+
+        result = self._dispatcher.dispatch(
+            operation,
+            event_id=envelope.event_id,
+            correlation_id=envelope.correlation_id,
+            template_name=template_name,
+        )
+
+        if result.delete_message:
+            self._delete(message)
 
     def _delete(self, message) -> None:
         try:

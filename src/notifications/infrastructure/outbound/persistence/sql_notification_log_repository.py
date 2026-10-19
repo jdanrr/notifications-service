@@ -31,6 +31,7 @@ class SqlNotificationLogRepository:
                     channel=log.channel,
                     template=log.template,
                     status=log.status,
+                    failure_reason=log.failure_reason,
                     created_at=log.created_at,
                 )
             )
@@ -45,6 +46,7 @@ class SqlNotificationLogRepository:
                         correlation_id=log.correlation_id,
                         template=log.template,
                         status=log.status,
+                        failure_reason=log.failure_reason,
                     )
                 )
                 session.commit()

@@ -6,7 +6,7 @@ event_bus_name = "kenko-prod-bus"
 auth_source    = "kenko.auth"
 
 # Eventos de Authentication que enruta la regla en prod.
-auth_detail_types = ["UserRegistered"]
+auth_detail_types = ["UserRegistered", "PasswordResetRequested"]
 
 # Retención más larga en prod para dar tiempo a depurar.
 visibility_timeout_seconds   = 60

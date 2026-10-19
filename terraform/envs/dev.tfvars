@@ -3,7 +3,7 @@ environment = "dev"
 region      = "us-east-1"
 
 # Eventos de Authentication que enruta la regla en dev.
-auth_detail_types = ["UserRegistered"]
+auth_detail_types = ["UserRegistered", "PasswordResetRequested"]
 
 # Parámetros más permisivos para desarrollo.
 visibility_timeout_seconds   = 60

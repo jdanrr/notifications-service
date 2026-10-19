@@ -10,6 +10,7 @@ dependencies = [
     "pydantic-settings>=2.6.0",
     "sqlalchemy>=2.0.35",
     "psycopg2-binary>=2.9.9",
+    "email-validator>=2.3.0",
 ]
 
 [project.optional-dependencies]

@@ -34,6 +34,21 @@ def welcome_envelope(welcome_event_json):
 
 
 @pytest.fixture
+def password_reset_event_json() -> str:
+    return (FIXTURES_DIR / "password_reset_requested.json").read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def password_reset_event(password_reset_event_json) -> dict:
+    return json.loads(password_reset_event_json)
+
+
+@pytest.fixture
+def password_reset_envelope(password_reset_event_json):
+    return parse_envelope(password_reset_event_json)
+
+
+@pytest.fixture
 def brand() -> WelcomeBrandConfig:
     return WelcomeBrandConfig(
         app_name="Kenko",

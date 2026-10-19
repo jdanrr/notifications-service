@@ -21,3 +21,6 @@ class NotificationLog:
     template: str
     status: str
     created_at: datetime
+    # Motivo del fallo cuando status == "failed" (p. ej. "expired").
+    # None en los envios exitosos.
+    failure_reason: str | None = None

@@ -8,13 +8,26 @@ import logging
 
 import boto3
 
+from notifications.application.dispatcher import Dispatcher
 from notifications.application.models import WelcomeBrandConfig
+from notifications.application.use_cases.auth.send_password_reset_email import (
+    TEMPLATE_NAME as PASSWORD_RESET_TEMPLATE,
+)
+from notifications.application.use_cases.auth.send_password_reset_email import (
+    SendPasswordResetEmailUseCase,
+)
+from notifications.application.use_cases.auth.send_welcome_email import (
+    TEMPLATE_NAME as WELCOME_TEMPLATE,
+)
 from notifications.application.use_cases.auth.send_welcome_email import (
     SendWelcomeEmailUseCase,
 )
 from notifications.domain.notification_log import NotificationLog, NotificationStatus
 from notifications.infrastructure.config import Settings
-from notifications.infrastructure.inbound.sqs.mappers import envelope_to_welcome_command
+from notifications.infrastructure.inbound.sqs.mappers import (
+    envelope_to_password_reset_command,
+    envelope_to_welcome_command,
+)
 from notifications.infrastructure.inbound.sqs.poller import SqsPoller
 from notifications.infrastructure.inbound.sqs.router import EventRouter
 from notifications.infrastructure.inbound.sqs.worker import AuthEventsWorker
@@ -69,19 +82,28 @@ def build_worker(settings: Settings) -> AuthEventsWorker:
     sender = SesEmailSender(client=session.client("ses"), sender=settings.ses_sender)
     repository = build_repository(settings)
 
-    use_case = SendWelcomeEmailUseCase(
+    brand = WelcomeBrandConfig(
+        app_name=settings.app_name,
+        portal_url=settings.kenko_portal_url,
+        support_email=settings.kenko_support_email,
+        logo_url=settings.logo_url,
+    )
+
+    welcome_use_case = SendWelcomeEmailUseCase(
         renderer=renderer,
         sender=sender,
         repository=repository,
-        brand=WelcomeBrandConfig(
-            app_name=settings.app_name,
-            portal_url=settings.kenko_portal_url,
-            support_email=settings.kenko_support_email,
-            logo_url=settings.logo_url,
-        ),
+        brand=brand,
+    )
+    password_reset_use_case = SendPasswordResetEmailUseCase(
+        renderer=renderer,
+        sender=sender,
+        repository=repository,
+        brand=brand,
     )
 
-    router = build_router(use_case)
+    router = build_router(welcome_use_case, password_reset_use_case)
+    dispatcher = Dispatcher(repository)
 
     poller = SqsPoller(
         client=session.client("sqs"),
@@ -90,10 +112,13 @@ def build_worker(settings: Settings) -> AuthEventsWorker:
         wait_time_seconds=settings.receive_wait_time_seconds,
     )
 
-    return AuthEventsWorker(poller=poller, router=router, repository=repository)
+    return AuthEventsWorker(poller=poller, router=router, dispatcher=dispatcher)
 
 
-def build_router(use_case: SendWelcomeEmailUseCase) -> EventRouter:
+def build_router(
+    welcome_use_case: SendWelcomeEmailUseCase,
+    password_reset_use_case: SendPasswordResetEmailUseCase,
+) -> EventRouter:
     """Registra los eventos de Authentication que Notifications consume.
 
     Punto unico de declaracion: el test de sincronizacion compara las claves
@@ -104,12 +129,23 @@ def build_router(use_case: SendWelcomeEmailUseCase) -> EventRouter:
     Para agregar un evento nuevo: registrarlo aqui Y en el .tfvars del ambiente.
     """
     router = EventRouter()
-    router.register("kenko.auth", "UserRegistered", _handler(use_case))
+    router.register(
+        "kenko.auth",
+        "UserRegistered",
+        _handler(welcome_use_case, envelope_to_welcome_command),
+        template_name=WELCOME_TEMPLATE,
+    )
+    router.register(
+        "kenko.auth",
+        "PasswordResetRequested",
+        _handler(password_reset_use_case, envelope_to_password_reset_command),
+        template_name=PASSWORD_RESET_TEMPLATE,
+    )
     return router
 
 
-def _handler(use_case: SendWelcomeEmailUseCase):
+def _handler(use_case, mapper):
     def handle(envelope) -> str:
-        return use_case.execute(envelope_to_welcome_command(envelope))
+        return use_case.execute(mapper(envelope))
 
     return handle
