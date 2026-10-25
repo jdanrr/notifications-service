@@ -49,6 +49,23 @@ def password_reset_envelope(password_reset_event_json):
 
 
 @pytest.fixture
+def appointment_scheduled_envelope():
+    return parse_envelope((FIXTURES_DIR / "appointment_scheduled.json").read_text(encoding="utf-8"))
+
+
+@pytest.fixture
+def appointment_rescheduled_envelope():
+    return parse_envelope(
+        (FIXTURES_DIR / "appointment_rescheduled.json").read_text(encoding="utf-8")
+    )
+
+
+@pytest.fixture
+def appointment_cancelled_envelope():
+    return parse_envelope((FIXTURES_DIR / "appointment_cancelled.json").read_text(encoding="utf-8"))
+
+
+@pytest.fixture
 def brand() -> WelcomeBrandConfig:
     return WelcomeBrandConfig(
         app_name="Kenko",

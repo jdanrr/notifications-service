@@ -43,10 +43,10 @@ def test_user_registered_conserva_su_ruta(welcome_envelope):
     assert route.template_name == "welcome"
 
 
-def test_ambos_eventos_registrados_en_el_mismo_router():
+def test_eventos_auth_registrados_en_el_mismo_router():
     router = build_test_router()
 
-    assert router.registered_routes() == {
+    assert router.registered_routes() >= {
         ("kenko.auth", "UserRegistered"),
         ("kenko.auth", "PasswordResetRequested"),
     }

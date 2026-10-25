@@ -34,6 +34,7 @@ domain/            Núcleo: errores y NotificationLog. Sin dependencias externas
 application/       Casos de uso, puertos (interfaces), dispatcher. Sin boto3.
   ports/             EmailSender · TemplateRenderer · NotificationLogRepository
   use_cases/auth/    send_welcome_email · send_password_reset_email
+  use_cases/appointments/ send_appointment_scheduled_email · send_appointment_rescheduled_email · send_appointment_cancelled_email
   dispatcher.py      idempotencia + clasificación de errores
 infrastructure/    Adaptadores.
   inbound/sqs/       poller (SQS) · worker (loop) · envelope · router · mappers · schemas
@@ -170,6 +171,23 @@ tail -f /tmp/kenko_worker.log
 
 Al arrancar verás el warning de `DATABASE_URL` (esperado sin BD) y
 `worker iniciado`.
+
+### 3b. Segunda instancia (cola de Appointments)
+
+Cada worker lee **una sola cola** (`SQS_QUEUE_URL`). Para consumir las dos
+colas se levantan dos procesos con el mismo código; las variables reales
+tienen prioridad sobre el `.env`, así que basta con sobrescribir la URL:
+
+```bash
+SQS_QUEUE_URL="$(cd terraform && terraform output -raw appointments_queue_url)" \
+  PYTHONPATH=src .venv/bin/python -m notifications.main > /tmp/kenko_worker_appointments.log 2>&1 &
+echo $! > /tmp/kenko_worker_appointments.pid
+tail -f /tmp/kenko_worker_appointments.log
+```
+
+La primera instancia sigue usando el `SQS_QUEUE_URL` del `.env` (cola de
+Authentication). Ambas comparten el mismo router: cada una ignora los
+eventos que no son de su cola simplemente porque nunca los recibe.
 
 ### 4. Detenerlo
 

@@ -10,6 +10,24 @@ import boto3
 
 from notifications.application.dispatcher import Dispatcher
 from notifications.application.models import WelcomeBrandConfig
+from notifications.application.use_cases.appointments.send_appointment_cancelled_email import (
+    TEMPLATE_NAME as APPOINTMENT_CANCELLED_TEMPLATE,
+)
+from notifications.application.use_cases.appointments.send_appointment_cancelled_email import (
+    SendAppointmentCancelledEmailUseCase,
+)
+from notifications.application.use_cases.appointments.send_appointment_rescheduled_email import (
+    TEMPLATE_NAME as APPOINTMENT_RESCHEDULED_TEMPLATE,
+)
+from notifications.application.use_cases.appointments.send_appointment_rescheduled_email import (
+    SendAppointmentRescheduledEmailUseCase,
+)
+from notifications.application.use_cases.appointments.send_appointment_scheduled_email import (
+    TEMPLATE_NAME as APPOINTMENT_SCHEDULED_TEMPLATE,
+)
+from notifications.application.use_cases.appointments.send_appointment_scheduled_email import (
+    SendAppointmentScheduledEmailUseCase,
+)
 from notifications.application.use_cases.auth.send_password_reset_email import (
     TEMPLATE_NAME as PASSWORD_RESET_TEMPLATE,
 )
@@ -25,6 +43,9 @@ from notifications.application.use_cases.auth.send_welcome_email import (
 from notifications.domain.notification_log import NotificationLog, NotificationStatus
 from notifications.infrastructure.config import Settings
 from notifications.infrastructure.inbound.sqs.mappers import (
+    envelope_to_appointment_cancelled_command,
+    envelope_to_appointment_rescheduled_command,
+    envelope_to_appointment_scheduled_command,
     envelope_to_password_reset_command,
     envelope_to_welcome_command,
 )
@@ -101,8 +122,32 @@ def build_worker(settings: Settings) -> AuthEventsWorker:
         repository=repository,
         brand=brand,
     )
+    appointment_scheduled_use_case = SendAppointmentScheduledEmailUseCase(
+        renderer=renderer,
+        sender=sender,
+        repository=repository,
+        brand=brand,
+    )
+    appointment_rescheduled_use_case = SendAppointmentRescheduledEmailUseCase(
+        renderer=renderer,
+        sender=sender,
+        repository=repository,
+        brand=brand,
+    )
+    appointment_cancelled_use_case = SendAppointmentCancelledEmailUseCase(
+        renderer=renderer,
+        sender=sender,
+        repository=repository,
+        brand=brand,
+    )
 
-    router = build_router(welcome_use_case, password_reset_use_case)
+    router = build_router(
+        welcome_use_case,
+        password_reset_use_case,
+        appointment_scheduled_use_case,
+        appointment_rescheduled_use_case,
+        appointment_cancelled_use_case,
+    )
     dispatcher = Dispatcher(repository)
 
     poller = SqsPoller(
@@ -115,31 +160,57 @@ def build_worker(settings: Settings) -> AuthEventsWorker:
     return AuthEventsWorker(poller=poller, router=router, dispatcher=dispatcher)
 
 
+AUTH_SOURCE = "kenko.auth"
+APPOINTMENTS_SOURCE = "kenko.appointments"
+
+
 def build_router(
     welcome_use_case: SendWelcomeEmailUseCase,
     password_reset_use_case: SendPasswordResetEmailUseCase,
+    appointment_scheduled_use_case: SendAppointmentScheduledEmailUseCase,
+    appointment_rescheduled_use_case: SendAppointmentRescheduledEmailUseCase,
+    appointment_cancelled_use_case: SendAppointmentCancelledEmailUseCase,
 ) -> EventRouter:
-    """Registra los eventos de Authentication que Notifications consume.
+    """Registra los eventos de Authentication y Appointments que consume Notifications.
 
     Punto unico de declaracion: el test de sincronizacion compara las claves
-    de este router contra `auth_detail_types` en terraform/envs/*.tfvars, asi
-    que un evento enrutado sin handler (o un handler sin enrutamiento) falla
-    el build en vez de descartar eventos en silencio.
+    de este router contra `auth_detail_types` y `appointments_detail_types`
+    en terraform/envs/*.tfvars, asi que un evento enrutado sin handler (o un
+    handler sin enrutamiento) falla el build en vez de descartar eventos en
+    silencio.
 
     Para agregar un evento nuevo: registrarlo aqui Y en el .tfvars del ambiente.
     """
     router = EventRouter()
     router.register(
-        "kenko.auth",
+        AUTH_SOURCE,
         "UserRegistered",
         _handler(welcome_use_case, envelope_to_welcome_command),
         template_name=WELCOME_TEMPLATE,
     )
     router.register(
-        "kenko.auth",
+        AUTH_SOURCE,
         "PasswordResetRequested",
         _handler(password_reset_use_case, envelope_to_password_reset_command),
         template_name=PASSWORD_RESET_TEMPLATE,
+    )
+    router.register(
+        APPOINTMENTS_SOURCE,
+        "AppointmentScheduled",
+        _handler(appointment_scheduled_use_case, envelope_to_appointment_scheduled_command),
+        template_name=APPOINTMENT_SCHEDULED_TEMPLATE,
+    )
+    router.register(
+        APPOINTMENTS_SOURCE,
+        "AppointmentRescheduled",
+        _handler(appointment_rescheduled_use_case, envelope_to_appointment_rescheduled_command),
+        template_name=APPOINTMENT_RESCHEDULED_TEMPLATE,
+    )
+    router.register(
+        APPOINTMENTS_SOURCE,
+        "AppointmentCancelled",
+        _handler(appointment_cancelled_use_case, envelope_to_appointment_cancelled_command),
+        template_name=APPOINTMENT_CANCELLED_TEMPLATE,
     )
     return router
 

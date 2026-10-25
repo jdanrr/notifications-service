@@ -1,0 +1,18 @@
+{# Cita cancelada. Requerido: user_name, appointment_type, date, start_time.
+Opcional: end_time, weekday, physician_name, medical_center_name.
+Marca: app_name, portal_url, support_email, logo_url, current_year. #}
+{% extends "_base.html.j2" %}
+{% block subject %}Tu cita de {{ appointment_type }} fue cancelada{% endblock %}
+{% block preheader %}Hola {{ user_name }} — se canceló tu cita del {{ date }}.{% endblock %}
+{% block content %}
+<h1 style="margin:0 0 12px 0;font-size:22px;line-height:1.3;color:#224a5b;">Hola {{ user_name }} — tu cita fue cancelada</h1>
+<p style="margin:0 0 12px 0;">Se canceló tu cita en {{ app_name | default('Kenko') }}:</p>
+<ul style="margin:0 0 12px 0;padding-left:20px;">
+  <li><strong>Tipo:</strong> {{ appointment_type }}</li>
+  <li><strong>Fecha:</strong> {{ date }}{% if weekday | default('') %} ({{ weekday }}){% endif %}</li>
+  <li><strong>Hora:</strong> {{ start_time }}{% if end_time | default('') %} – {{ end_time }}{% endif %}</li>
+  <li><strong>Médico:</strong> {{ physician_name | default('Por asignar', true) }}</li>
+  <li><strong>Centro:</strong> {{ medical_center_name | default('Por confirmar', true) }}</li>
+</ul>
+<p style="margin:0;">Si deseas agendar una nueva cita, ingresa al portal: <a href="{{ portal_url }}" style="color:#295fc3;">{{ portal_url }}</a></p>
+{% endblock %}

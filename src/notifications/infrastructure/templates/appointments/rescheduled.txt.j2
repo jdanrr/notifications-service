@@ -1,0 +1,16 @@
+Hola {{ user_name }} — tu cita fue reprogramada.
+
+{% if previous_date | default('') %}Fecha anterior: {{ previous_date }}{% if previous_start_time | default('') %} a las {{ previous_start_time }}{% endif %}
+
+{% endif %}Nuevos datos:
+Tipo: {{ appointment_type }}
+Fecha: {{ date }}{% if weekday | default('') %} ({{ weekday }}){% endif %}
+Hora: {{ start_time }} – {{ end_time }}
+Médico: {{ physician_name | default('Por asignar', true) }}
+Centro: {{ medical_center_name | default('Por confirmar', true) }}{% if medical_center_location | default('') %} — {{ medical_center_location }}{% endif %}
+
+Llega 15 minutos antes con tu documento de identidad. Si no puedes asistir, cancela o reprograma desde el portal: {{ portal_url }}
+
+---
+Este es un mensaje automático de {{ app_name | default('Kenko') }}, por favor no respondas a este correo.
+© {{ current_year }} {{ app_name | default('Kenko') }} EPS · Colombia
