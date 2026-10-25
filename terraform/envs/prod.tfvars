@@ -6,7 +6,10 @@ event_bus_name = "kenko-prod-bus"
 auth_source    = "kenko.auth"
 
 # Eventos de Authentication que enruta la regla en prod.
-auth_detail_types = ["UserRegistered", "PasswordResetRequested"]
+auth_detail_types = ["UserRegistered", "PasswordResetRequested", "EmailChanged"]
+
+# Eventos de Appointments que enruta la regla en prod.
+appointments_detail_types = ["AppointmentScheduled", "AppointmentRescheduled", "AppointmentCancelled"]
 
 # Retención más larga en prod para dar tiempo a depurar.
 visibility_timeout_seconds   = 60

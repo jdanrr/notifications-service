@@ -34,6 +34,18 @@ variable "auth_detail_types" {
   default     = ["UserRegistered"]
 }
 
+variable "appointments_source" {
+  description = "Valor del campo `source` del sobre de EventBridge emitido por Appointments."
+  type        = string
+  default     = "kenko.appointments"
+}
+
+variable "appointments_detail_types" {
+  description = "Lista de `detail-type` de Appointments que enruta la regla. Agregar eventos futuros aquí, sin tocar recursos."
+  type        = list(string)
+  default     = ["AppointmentScheduled", "AppointmentRescheduled", "AppointmentCancelled"]
+}
+
 variable "visibility_timeout_seconds" {
   description = "Segundos durante los que un mensaje entregado queda oculto. Debe ser mayor que el tiempo máximo que tarda el worker en enviar el correo con SES."
   type        = number

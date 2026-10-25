@@ -15,6 +15,14 @@ lo referencia con un `data` source, nunca lo crea.
 | Regla de EventBridge | `kenko-dev-auth-to-notifications` |
 | Cola principal SQS | `kenko-dev-notifications-authentication` |
 | Dead-letter queue | `kenko-dev-notifications-authentication-dlq` |
+| Regla de EventBridge | `kenko-dev-appointments-to-notifications` |
+| Cola principal SQS | `kenko-dev-notifications-appointments` |
+| Dead-letter queue | `kenko-dev-notifications-appointments-dlq` |
+
+| Evento (`source` / `detail-type`) | Regla | Cola | DLQ |
+|---|---|---|---|
+| `kenko.auth` / `UserRegistered`, `PasswordResetRequested` | `kenko-dev-auth-to-notifications` | `kenko-dev-notifications-authentication` | `kenko-dev-notifications-authentication-dlq` |
+| `kenko.appointments` / `AppointmentScheduled`, `AppointmentRescheduled`, `AppointmentCancelled` | `kenko-dev-appointments-to-notifications` | `kenko-dev-notifications-appointments` | `kenko-dev-notifications-appointments-dlq` |
 
 Los nombres se derivan de `project` + `environment`, con el patrón
 `{project}-{env}-{consumer}-{producer}[-dlq]`.
@@ -45,6 +53,15 @@ y aplicar. La regla se reconstruye sola; no toca editar recursos.
 
 ```hcl
 auth_detail_types = ["UserRegistered", "UserEmailVerified"]
+```
+
+## Agregar un evento de Appointments
+
+Agregar el `detail-type` a `appointments_detail_types` en el `.tfvars` del ambiente
+y aplicar. La regla se reconstruye sola; no toca editar recursos.
+
+```hcl
+appointments_detail_types = ["AppointmentScheduled", "AppointmentRescheduled", "AppointmentCancelled"]
 ```
 
 ## Verificación

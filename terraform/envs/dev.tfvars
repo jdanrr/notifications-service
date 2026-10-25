@@ -3,7 +3,10 @@ environment = "dev"
 region      = "us-east-1"
 
 # Eventos de Authentication que enruta la regla en dev.
-auth_detail_types = ["UserRegistered", "PasswordResetRequested"]
+auth_detail_types = ["UserRegistered", "PasswordResetRequested", "EmailChanged"]
+
+# Eventos de Appointments que enruta la regla en dev.
+appointments_detail_types = ["AppointmentScheduled", "AppointmentRescheduled", "AppointmentCancelled"]
 
 # Parámetros más permisivos para desarrollo.
 visibility_timeout_seconds   = 60
