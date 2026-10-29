@@ -1,5 +1,7 @@
 """Tests del adaptador SES con botocore Stubber: sin llamadas reales a AWS."""
 
+import email
+
 import boto3
 import pytest
 from botocore.exceptions import EndpointConnectionError, ReadTimeoutError
@@ -16,6 +18,7 @@ TO = "maria.gomez@example.com"
 SUBJECT = "Bienvenido a Kenko"
 HTML = "<html><body>Hola</body></html>"
 TEXT = "Hola"
+LOGO = b"\x89PNG\r\n\x1a\nlogo-falso"
 
 
 def build_client() -> boto3.client:
@@ -28,42 +31,60 @@ def build_client() -> boto3.client:
     )
 
 
-def add_expected_send(stub: Stubber) -> None:
-    stub.add_response(
-        "send_email",
-        {"MessageId": "0001"},
-        {
-            "Source": SENDER,
-            "Destination": {"ToAddresses": [TO]},
-            "Message": {
-                "Subject": {"Data": SUBJECT, "Charset": "UTF-8"},
-                "Body": {
-                    "Html": {"Data": HTML, "Charset": "UTF-8"},
-                    "Text": {"Data": TEXT, "Charset": "UTF-8"},
-                },
-            },
-        },
-    )
+def build_sender(client) -> SesEmailSender:
+    return SesEmailSender(client=client, sender=SENDER, logo=LOGO)
 
 
-def test_send_email_usa_payload_esperado():
-    client = build_client()
-    stub = Stubber(client)
-    add_expected_send(stub)
-    stub.activate()
-    sender = SesEmailSender(client=client, sender=SENDER)
+class CaptureClient:
+    """Fake que guarda el payload crudo para inspeccionar el MIME."""
+
+    def __init__(self) -> None:
+        self.sent: list[dict] = []
+
+    def send_raw_email(self, **kwargs):
+        self.sent.append(kwargs)
+        return {"MessageId": "0001"}
+
+
+def test_raw_incluye_texto_html_y_logo_por_cid():
+    client = CaptureClient()
+    sender = build_sender(client)
 
     sender.send(subject=SUBJECT, html=HTML, text=TEXT, to=TO)
 
-    stub.assert_no_pending_responses()
+    assert len(client.sent) == 1
+    payload = client.sent[0]
+    assert payload["Source"] == SENDER
+    assert payload["Destinations"] == [TO]
+
+    message = email.message_from_string(payload["RawMessage"]["Data"])
+    assert message["Subject"] == SUBJECT
+    assert message["To"] == TO
+    assert message.get_content_type() == "multipart/related"
+
+    parts = message.get_payload()
+    alternative, image = parts[0], parts[1]
+    assert alternative.get_content_type() == "multipart/alternative"
+
+    bodies = {
+        part.get_content_type(): part.get_payload(decode=True).decode("utf-8")
+        for part in alternative.get_payload()
+    }
+    assert bodies["text/plain"] == TEXT
+    assert bodies["text/html"] == HTML
+
+    assert image.get_content_type() == "image/png"
+    assert image["Content-ID"] == "<logo>"
+    assert image.get_filename() == "logo.png"
+    assert image.get_payload(decode=True) == LOGO
 
 
 def test_message_rejected_es_permanente():
     client = build_client()
     stub = Stubber(client)
-    stub.add_client_error("send_email", service_error_code="MessageRejected")
+    stub.add_client_error("send_raw_email", service_error_code="MessageRejected")
     stub.activate()
-    sender = SesEmailSender(client=client, sender=SENDER)
+    sender = build_sender(client)
 
     with pytest.raises(PermanentNotificationError):
         sender.send(subject=SUBJECT, html=HTML, text=TEXT, to=TO)
@@ -72,9 +93,9 @@ def test_message_rejected_es_permanente():
 def test_throttling_es_transitorio():
     client = build_client()
     stub = Stubber(client)
-    stub.add_client_error("send_email", service_error_code="Throttling")
+    stub.add_client_error("send_raw_email", service_error_code="Throttling")
     stub.activate()
-    sender = SesEmailSender(client=client, sender=SENDER)
+    sender = build_sender(client)
 
     with pytest.raises(TransientNotificationError):
         sender.send(subject=SUBJECT, html=HTML, text=TEXT, to=TO)
@@ -90,10 +111,10 @@ def test_throttling_es_transitorio():
 )
 def test_fallo_de_red_es_transitorio(exc):
     class BrokenClient:
-        def send_email(self, **kwargs):
+        def send_raw_email(self, **kwargs):
             raise exc
 
-    sender = SesEmailSender(client=BrokenClient(), sender=SENDER)
+    sender = build_sender(BrokenClient())
 
     with pytest.raises(TransientNotificationError):
         sender.send(subject=SUBJECT, html=HTML, text=TEXT, to=TO)

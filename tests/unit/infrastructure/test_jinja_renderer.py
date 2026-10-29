@@ -23,7 +23,7 @@ def test_render_html_con_todas_las_variables(renderer):
     assert "maria.gomez@example.com" in html
     assert "https://kenko.example.com" in html
     assert "soporte@kenko.example.com" in html
-    assert "https://cdn.kenko.example.com/img/kenko_limpio.png" in html
+    assert "cid:logo" in html
     assert "2026" in html
 
 
@@ -53,7 +53,7 @@ def test_texto_plano_no_escapa(renderer):
 
 
 def test_variable_faltante_es_error_permanente(renderer):
-    incomplete = {k: v for k, v in CONTEXT.items() if k != "logo_url"}
+    incomplete = {k: v for k, v in CONTEXT.items() if k != "support_email"}
 
     with pytest.raises(PermanentNotificationError):
         renderer.render("auth/welcome.html.j2", incomplete)
