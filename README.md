@@ -133,11 +133,11 @@ cp .env.example .env
 
 | Variable | Requerida | Default | Descripción |
 |---|---|---|---|
-| `SQS_QUEUE_URL` | ✅ | — | Cola a consumir |
+| `SQS_QUEUE_URLS` | ✅ | — | Colas a consumir, separadas por coma (un solo worker las rota) |
 | `SES_SENDER` | ✅ | — | Remitente verificado en SES |
 | `KENKO_PORTAL_URL` | ✅ | — | Enlace "Ingresar al portal" en el pie |
 | `KENKO_SUPPORT_EMAIL` | ✅ | — | Soporte en el pie del correo |
-| `LOGO_URL` | ✅ | — | URL pública del logo (**PNG**; los clientes de correo no soportan SVG) |
+| `LOGO_URL` | ✅ | — | Reservada (el logo se embebe por CID desde `templates/static/img`, no por URL) |
 | `AWS_REGION` | | `us-east-1` | Región |
 | `APP_NAME` | | `Kenko` | Marca en los textos |
 | `LOG_LEVEL` | | `INFO` | Nivel de logging |
@@ -172,22 +172,16 @@ tail -f /tmp/kenko_worker.log
 Al arrancar verás el warning de `DATABASE_URL` (esperado sin BD) y
 `worker iniciado`.
 
-### 3b. Segunda instancia (cola de Appointments)
+### 3b. Un solo worker lee todas las colas
 
-Cada worker lee **una sola cola** (`SQS_QUEUE_URL`). Para consumir las dos
-colas se levantan dos procesos con el mismo código; las variables reales
-tienen prioridad sobre el `.env`, así que basta con sobrescribir la URL:
+El worker rota entre las colas de `SQS_QUEUE_URLS` (round-robin: cada
+`receive()` consulta la siguiente). Con long polling, una cola puede tardar
+hasta ~`WaitTimeSeconds` extra mientras la otra está vacía. Cada mensaje se
+borra en su cola de origen, así que no hay cruces.
 
-```bash
-SQS_QUEUE_URL="$(cd terraform && terraform output -raw appointments_queue_url)" \
-  PYTHONPATH=src .venv/bin/python -m notifications.main > /tmp/kenko_worker_appointments.log 2>&1 &
-echo $! > /tmp/kenko_worker_appointments.pid
-tail -f /tmp/kenko_worker_appointments.log
-```
-
-La primera instancia sigue usando el `SQS_QUEUE_URL` del `.env` (cola de
-Authentication). Ambas comparten el mismo router: cada una ignora los
-eventos que no son de su cola simplemente porque nunca los recibe.
+Ya no hace falta una segunda instancia: con el `.env` apuntando a las dos
+colas, el proceso que levantaste en el paso 3 consume Authentication y
+Appointments.
 
 ### 4. Detenerlo
 

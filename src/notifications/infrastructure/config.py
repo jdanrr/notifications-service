@@ -1,6 +1,9 @@
 """Configuracion por variables de entorno. Nada hardcodeado ni en el repo."""
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import Annotated
+
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -8,7 +11,8 @@ class Settings(BaseSettings):
 
     # AWS
     aws_region: str = "us-east-1"
-    sqs_queue_url: str
+    # Una o varias colas separadas por coma. Un solo worker las rota.
+    sqs_queue_urls: Annotated[list[str], NoDecode]
     ses_sender: str
 
     # Marca / contenido de los correos
@@ -24,3 +28,13 @@ class Settings(BaseSettings):
 
     # Persistencia opcional (si se omite: repositorio en memoria)
     database_url: str | None = None
+
+    @field_validator("sqs_queue_urls", mode="before")
+    @classmethod
+    def split_queue_urls(cls, value: str | list[str]) -> list[str]:
+        if isinstance(value, str):
+            value = [url.strip() for url in value.split(",")]
+        urls = [url for url in value if url]
+        if not urls:
+            raise ValueError("SQS_QUEUE_URLS debe traer al menos una cola")
+        return urls

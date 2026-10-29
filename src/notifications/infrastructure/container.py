@@ -5,6 +5,7 @@ desarrollo y pruebas, pero la idempotencia no sobrevive a un reinicio.
 """
 
 import logging
+from pathlib import Path
 
 import boto3
 
@@ -51,11 +52,24 @@ from notifications.infrastructure.inbound.sqs.mappers import (
 )
 from notifications.infrastructure.inbound.sqs.poller import SqsPoller
 from notifications.infrastructure.inbound.sqs.router import EventRouter
-from notifications.infrastructure.inbound.sqs.worker import AuthEventsWorker
+from notifications.infrastructure.inbound.sqs.worker import EventsWorker
 from notifications.infrastructure.outbound.email.ses_email_sender import SesEmailSender
 from notifications.infrastructure.outbound.rendering.jinja_renderer import JinjaTemplateRenderer
 
 logger = logging.getLogger(__name__)
+
+# Logo que el sender embebe en cada correo (CID). Vive en el repo para no
+# depender de un hosting externo.
+LOGO_PATH = Path(__file__).resolve().parent / "templates" / "static" / "img" / "kenko_limpio.png"
+
+
+def load_logo() -> bytes:
+    """Lee el logo embebido. Falla en seco al arrancar si falta: sin el
+    archivo todos los correos saldrian con la imagen rota."""
+    try:
+        return LOGO_PATH.read_bytes()
+    except OSError as exc:
+        raise RuntimeError(f"no se pudo leer el logo embebido {LOGO_PATH}") from exc
 
 
 class InMemoryNotificationLogRepository:
@@ -96,11 +110,13 @@ def build_repository(settings: Settings):
     return SqlNotificationLogRepository(build_session_factory(engine))
 
 
-def build_worker(settings: Settings) -> AuthEventsWorker:
+def build_worker(settings: Settings) -> EventsWorker:
     session = boto3.Session(region_name=settings.aws_region)
 
     renderer = JinjaTemplateRenderer()
-    sender = SesEmailSender(client=session.client("ses"), sender=settings.ses_sender)
+    sender = SesEmailSender(
+        client=session.client("ses"), sender=settings.ses_sender, logo=load_logo()
+    )
     repository = build_repository(settings)
 
     brand = WelcomeBrandConfig(
@@ -152,12 +168,12 @@ def build_worker(settings: Settings) -> AuthEventsWorker:
 
     poller = SqsPoller(
         client=session.client("sqs"),
-        queue_url=settings.sqs_queue_url,
+        queue_urls=settings.sqs_queue_urls,
         batch_size=settings.receive_batch_size,
         wait_time_seconds=settings.receive_wait_time_seconds,
     )
 
-    return AuthEventsWorker(poller=poller, router=router, dispatcher=dispatcher)
+    return EventsWorker(poller=poller, router=router, dispatcher=dispatcher)
 
 
 AUTH_SOURCE = "kenko.auth"

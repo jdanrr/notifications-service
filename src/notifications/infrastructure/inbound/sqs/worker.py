@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 UNKNOWN_TEMPLATE = "unknown"
 
 
-class AuthEventsWorker:
+class EventsWorker:
     def __init__(
         self,
         poller: SqsPoller,
@@ -93,7 +93,7 @@ class AuthEventsWorker:
 
     def _delete(self, message) -> None:
         try:
-            self._poller.delete(message.receipt_handle)
+            self._poller.delete(message)
         except (ClientError, BotoCoreError) as exc:
             if _is_permanent(exc):
                 logger.warning("no se pudo borrar mensaje: %s", type(exc).__name__)
