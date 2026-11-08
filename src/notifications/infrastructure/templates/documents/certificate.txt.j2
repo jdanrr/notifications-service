@@ -1,0 +1,10 @@
+Hola {{ user_name }} — tu certificado está listo.
+
+Adjuntamos tu certificado {{ file_name }}{% if issued_at | default('') %} emitido el {{ issued_at }}{% endif %}.
+
+Si no puedes abrir el adjunto, escríbenos a {{ support_email }}.
+También puedes descargarlo desde el portal: {{ portal_url }}
+
+---
+Este es un mensaje automático de {{ app_name | default('Kenko') }}, por favor no respondas a este correo.
+© {{ current_year }} {{ app_name | default('Kenko') }} EPS · Colombia

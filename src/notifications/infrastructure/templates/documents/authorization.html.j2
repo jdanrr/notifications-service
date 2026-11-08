@@ -1,0 +1,13 @@
+{# Estado de autorización. Requerido: user_name, authorization_type, status, file_name.
+Opcional: changed_at.
+Marca: app_name, portal_url, support_email, logo_url, current_year.
+Nota: el PDF (file_name) se envía como adjunto del correo, no como enlace. #}
+{% extends "_base.html.j2" %}
+{% block subject %}Tu autorización de {{ authorization_type }} cambió a {{ status }}{% endblock %}
+{% block preheader %}Hola {{ user_name }} — tu autorización de {{ authorization_type }} ahora está {{ status }}.{% endblock %}
+{% block content %}
+<h1 style="margin:0 0 12px 0;font-size:22px;line-height:1.3;color:#224a5b;">Hola {{ user_name }} — tu autorización cambió de estado</h1>
+<p style="margin:0 0 12px 0;">Tu autorización de <strong>{{ authorization_type }}</strong> ahora está <strong>{{ status }}</strong>{% if changed_at | default('') %} ({{ changed_at }}){% endif %}.</p>
+<p style="margin:0 0 12px 0;">Adjuntamos el documento <strong>{{ file_name }}</strong> con el detalle.</p>
+<p style="margin:0;">Si tienes dudas, escríbenos a <a href="mailto:{{ support_email }}" style="color:#295fc3;">{{ support_email }}</a> o ingresa al portal: <a href="{{ portal_url }}" style="color:#295fc3;">{{ portal_url }}</a></p>
+{% endblock %}

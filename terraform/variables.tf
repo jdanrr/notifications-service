@@ -46,6 +46,24 @@ variable "appointments_detail_types" {
   default     = ["AppointmentScheduled", "AppointmentRescheduled", "AppointmentCancelled"]
 }
 
+variable "documents_source" {
+  description = "Valor del campo `source` del sobre de EventBridge emitido por Documents."
+  type        = string
+  default     = "kenko.documents"
+}
+
+variable "documents_detail_types" {
+  description = "Lista de `detail-type` de Documents que enruta la regla. Agregar eventos futuros aquí, sin tocar recursos."
+  type        = list(string)
+  default     = ["AuthorizationStatusChanged", "CertificateGenerated", "MedicalHistoryPdfGenerated"]
+}
+
+variable "documents_files_bucket" {
+  description = "Nombre del bucket de S3 de Documents donde viven los PDFs. Solo documenta el permiso s3:GetObject que necesitará el worker; no crea ningún recurso."
+  type        = string
+  default     = "kenko-dev-documents-files"
+}
+
 variable "visibility_timeout_seconds" {
   description = "Segundos durante los que un mensaje entregado queda oculto. Debe ser mayor que el tiempo máximo que tarda el worker en enviar el correo con SES."
   type        = number

@@ -7,6 +7,7 @@ import pytest
 from botocore.exceptions import EndpointConnectionError, ReadTimeoutError
 from botocore.stub import Stubber
 
+from notifications.application.ports.email_sender_port import EmailAttachment
 from notifications.domain.errors import (
     PermanentNotificationError,
     TransientNotificationError,
@@ -118,3 +119,26 @@ def test_fallo_de_red_es_transitorio(exc):
 
     with pytest.raises(TransientNotificationError):
         sender.send(subject=SUBJECT, html=HTML, text=TEXT, to=TO)
+
+
+def test_con_adjunto_usa_mixed_y_adjunta_pdf():
+    client = CaptureClient()
+    sender = build_sender(client)
+    pdf = b"%PDF-1.4 certificado"
+
+    sender.send(
+        subject=SUBJECT,
+        html=HTML,
+        text=TEXT,
+        to=TO,
+        attachments=[EmailAttachment(filename="certificado.pdf", content=pdf)],
+    )
+
+    message = email.message_from_string(client.sent[0]["RawMessage"]["Data"])
+    assert message.get_content_type() == "multipart/mixed"
+
+    related, attachment = message.get_payload()
+    assert related.get_content_type() == "multipart/related"
+    assert attachment.get_content_type() == "application/pdf"
+    assert attachment.get_filename() == "certificado.pdf"
+    assert attachment.get_payload(decode=True) == pdf

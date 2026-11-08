@@ -1,0 +1,10 @@
+Hola {{ user_name }} — tu autorización cambió de estado.
+
+Tu autorización de {{ authorization_type }} ahora está {{ status }}{% if changed_at | default('') %} ({{ changed_at }}){% endif %}.
+Adjuntamos el documento {{ file_name }} con el detalle.
+
+Si tienes dudas, escríbenos a {{ support_email }} o ingresa al portal: {{ portal_url }}
+
+---
+Este es un mensaje automático de {{ app_name | default('Kenko') }}, por favor no respondas a este correo.
+© {{ current_year }} {{ app_name | default('Kenko') }} EPS · Colombia

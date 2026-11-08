@@ -1,7 +1,7 @@
 """Sincronizacion entre Terraform y el router de la aplicacion.
 
-Terraform decide QUE eventos llegan a cada cola (`auth_detail_types` y
-`appointments_detail_types`) y el container decide QUE eventos sabemos
+Terraform decide QUE eventos llegan a cada cola (`auth_detail_types`,
+`appointments_detail_types` y `documents_detail_types`) y el container decide QUE eventos sabemos
 procesar (build_router). Son dos lados del mismo contrato y pueden
 desincronizarse en silencio:
 
@@ -35,14 +35,25 @@ from notifications.application.use_cases.auth.send_password_reset_email import (
 from notifications.application.use_cases.auth.send_welcome_email import (
     SendWelcomeEmailUseCase,
 )
+from notifications.application.use_cases.documents.send_authorization_email import (
+    SendAuthorizationEmailUseCase,
+)
+from notifications.application.use_cases.documents.send_certificate_email import (
+    SendCertificateEmailUseCase,
+)
+from notifications.application.use_cases.documents.send_medical_history_email import (
+    SendMedicalHistoryEmailUseCase,
+)
 from notifications.infrastructure.container import (
     APPOINTMENTS_SOURCE,
     AUTH_SOURCE,
+    DOCUMENTS_SOURCE,
     build_router,
 )
 from notifications.infrastructure.outbound.rendering.jinja_renderer import (
     JinjaTemplateRenderer,
 )
+from tests.fakes.fake_attachment_provider import FakeAttachmentProvider
 from tests.fakes.fake_email_sender import FakeEmailSender
 from tests.fakes.in_memory_notification_log_repository import (
     InMemoryNotificationLogRepository,
@@ -55,6 +66,7 @@ TFVARS_DIR = REPO_ROOT / "terraform" / "envs"
 TFVARS_BY_SOURCE = {
     AUTH_SOURCE: "auth_detail_types",
     APPOINTMENTS_SOURCE: "appointments_detail_types",
+    DOCUMENTS_SOURCE: "documents_detail_types",
 }
 
 
@@ -78,12 +90,16 @@ def build_test_router():
         logo_url="https://cdn.kenko.example.com/img/kenko_limpio.png",
     )
     common = dict(renderer=renderer, sender=FakeEmailSender(), repository=repository, brand=brand)
+    attachments = FakeAttachmentProvider()
     return build_router(
         SendWelcomeEmailUseCase(**common),
         SendPasswordResetEmailUseCase(**common),
         SendAppointmentScheduledEmailUseCase(**common),
         SendAppointmentRescheduledEmailUseCase(**common),
         SendAppointmentCancelledEmailUseCase(**common),
+        SendCertificateEmailUseCase(**common, attachments=attachments),
+        SendAuthorizationEmailUseCase(**common, attachments=attachments),
+        SendMedicalHistoryEmailUseCase(**common, attachments=attachments),
     )
 
 
@@ -146,6 +162,7 @@ def test_fuentes_coinciden_con_terraform():
     expected = {
         _source_variable_from_terraform("auth_source"),
         _source_variable_from_terraform("appointments_source"),
+        _source_variable_from_terraform("documents_source"),
     }
     registered = set(registered_by_source())
 

@@ -1,0 +1,31 @@
+{
+  "version": "0",
+  "id": "0192b3e0-5f11-7a22-9b33-4c5d6e7f8092",
+  "detail-type": "CertificateGenerated",
+  "source": "kenko.documents",
+  "account": "137696817246",
+  "time": "2026-11-02T10:00:00Z",
+  "region": "us-east-1",
+  "resources": [],
+  "detail": {
+    "metadata": {
+      "eventId": "0192b3e0-5f11-7a22-9b33-4c5d6e7f8092",
+      "eventVersion": "1",
+      "occurredAt": "2026-11-02T10:00:00.000Z",
+      "correlationId": "7e8f9a0b-2c3d-4e5f-9a1b-3c4d5e6f7a8c"
+    },
+    "data": {
+      "certificateId": "0192b3a0-4444-7ddd-8eee-000000000004",
+      "userId": "0192b3c4-7d8e-7f10-a2b3-4c5d6e7f8000",
+      "email": "maria.gomez@example.com",
+      "firstName": "Maria Fernanda",
+      "issuedAt": "2026-11-02",
+      "file": {
+        "bucket": "kenko-dev-documents-files",
+        "key": "certificates/0192b3a0-4444-7ddd-8eee-000000000004.pdf",
+        "contentType": "application/pdf",
+        "fileName": "certificado_afiliacion.pdf"
+      }
+    }
+  }
+}

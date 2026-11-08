@@ -18,11 +18,18 @@ lo referencia con un `data` source, nunca lo crea.
 | Regla de EventBridge | `kenko-dev-appointments-to-notifications` |
 | Cola principal SQS | `kenko-dev-notifications-appointments` |
 | Dead-letter queue | `kenko-dev-notifications-appointments-dlq` |
+| Regla de EventBridge | `kenko-dev-documents-to-notifications` |
+| Cola principal SQS | `kenko-dev-notifications-documents` |
+| Dead-letter queue | `kenko-dev-notifications-documents-dlq` |
 
 | Evento (`source` / `detail-type`) | Regla | Cola | DLQ |
 |---|---|---|---|
 | `kenko.auth` / `UserRegistered`, `PasswordResetRequested` | `kenko-dev-auth-to-notifications` | `kenko-dev-notifications-authentication` | `kenko-dev-notifications-authentication-dlq` |
 | `kenko.appointments` / `AppointmentScheduled`, `AppointmentRescheduled`, `AppointmentCancelled` | `kenko-dev-appointments-to-notifications` | `kenko-dev-notifications-appointments` | `kenko-dev-notifications-appointments-dlq` |
+| `kenko.documents` / `AuthorizationStatusChanged`, `CertificateGenerated`, `MedicalHistoryPdfGenerated` | `kenko-dev-documents-to-notifications` | `kenko-dev-notifications-documents` | `kenko-dev-notifications-documents-dlq` |
+
+`DocumentsUpdated` (`kenko.documents`) no se enruta a ninguna cola: es un evento
+de auditoría que nadie consume.
 
 Los nombres se derivan de `project` + `environment`, con el patrón
 `{project}-{env}-{consumer}-{producer}[-dlq]`.
@@ -63,6 +70,33 @@ y aplicar. La regla se reconstruye sola; no toca editar recursos.
 ```hcl
 appointments_detail_types = ["AppointmentScheduled", "AppointmentRescheduled", "AppointmentCancelled"]
 ```
+
+## Agregar un evento de Documents
+
+Agregar el `detail-type` a `documents_detail_types` en el `.tfvars` del ambiente
+y aplicar. La regla se reconstruye sola; no toca editar recursos.
+
+```hcl
+documents_detail_types = ["AuthorizationStatusChanged", "CertificateGenerated", "MedicalHistoryPdfGenerated"]
+```
+
+## Permiso pendiente: lectura de PDFs en S3
+
+El worker necesitará `s3:GetObject` sobre el bucket de Documents para descargar
+los PDFs (`file.bucket` / `file.key` del evento) y adjuntarlos al correo. Este
+repo aún no tiene ningún rol ni policy IAM del worker, así que no se crea nada
+aquí. Cuando se defina dónde corre el worker, agregarle:
+
+```json
+{
+  "Effect": "Allow",
+  "Action": ["s3:GetObject"],
+  "Resource": ["arn:aws:s3:::kenko-dev-documents-files/*"]
+}
+```
+
+El nombre del bucket está como variable `documents_files_bucket` (por defecto
+`kenko-dev-documents-files`); confirmar con el equipo de Documents el nombre real.
 
 ## Verificación
 

@@ -1,0 +1,13 @@
+{# Certificado generado. Requerido: user_name, file_name.
+Opcional: issued_at.
+Marca: app_name, portal_url, support_email, logo_url, current_year.
+Nota: el PDF (file_name) se envía como adjunto del correo, no como enlace. #}
+{% extends "_base.html.j2" %}
+{% block subject %}Tu certificado de {{ app_name | default('Kenko') }} está listo{% endblock %}
+{% block preheader %}Hola {{ user_name }} — tu certificado está adjunto en este correo.{% endblock %}
+{% block content %}
+<h1 style="margin:0 0 12px 0;font-size:22px;line-height:1.3;color:#224a5b;">Hola {{ user_name }} — tu certificado está listo</h1>
+<p style="margin:0 0 12px 0;">Adjuntamos tu certificado <strong>{{ file_name }}</strong>{% if issued_at | default('') %} emitido el {{ issued_at }}{% endif %}.</p>
+<p style="margin:0 0 12px 0;">Si no puedes abrir el adjunto, escríbenos a <a href="mailto:{{ support_email }}" style="color:#295fc3;">{{ support_email }}</a>.</p>
+<p style="margin:0;">También puedes descargarlo desde el portal: <a href="{{ portal_url }}" style="color:#295fc3;">{{ portal_url }}</a></p>
+{% endblock %}

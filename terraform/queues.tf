@@ -183,3 +183,92 @@ resource "aws_sqs_queue_policy" "appointments_dlq" {
     ]
   })
 }
+
+# Consumo de Documents. Duplica el esquema de Auth con el productor
+# "documents": mismos parámetros, cifrado y permisos, otra regla.
+locals {
+  documents_producer   = "documents"
+  documents_queue_name = "${var.project}-${var.environment}-${local.consumer}-${local.documents_producer}"
+  documents_dlq_name   = "${local.documents_queue_name}-dlq"
+  documents_queue_arn  = "arn:aws:sqs:${var.region}:${data.aws_caller_identity.this.account_id}:${local.documents_queue_name}"
+  documents_event_pattern = jsonencode({
+    source = [var.documents_source]
+    # DocumentsUpdated es un evento de auditoría que nadie consume,
+    # por eso no se incluye en var.documents_detail_types.
+    detail-type = var.documents_detail_types
+  })
+}
+
+resource "aws_sqs_queue" "documents_dlq" {
+  name                      = local.documents_dlq_name
+  message_retention_seconds = var.dlq_message_retention_seconds
+
+  # Cifrado en reposo gestionado por SQS (SSE-SQS), sin gestión de claves.
+  sqs_managed_sse_enabled = true
+
+  # Solo la cola principal puede enviar mensajes a esta DLQ.
+  redrive_allow_policy = jsonencode({
+    redrivePermission = "byQueue"
+    sourceQueueArns   = [local.documents_queue_arn]
+  })
+}
+
+resource "aws_sqs_queue" "documents" {
+  name                       = local.documents_queue_name
+  visibility_timeout_seconds = var.visibility_timeout_seconds
+  message_retention_seconds  = var.message_retention_seconds
+  receive_wait_time_seconds  = var.receive_wait_time_seconds
+
+  sqs_managed_sse_enabled = true
+
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.documents_dlq.arn
+    maxReceiveCount     = var.max_receive_count
+  })
+}
+
+# Mínimo privilegio: solo EventBridge puede hacer SendMessage, y solo si el
+# origen es exactamente la regla de Documents.
+resource "aws_sqs_queue_policy" "documents" {
+  queue_url = aws_sqs_queue.documents.url
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "AllowEventBridgeSendMessage"
+        Effect    = "Allow"
+        Principal = { Service = "events.amazonaws.com" }
+        Action    = "sqs:SendMessage"
+        Resource  = aws_sqs_queue.documents.arn
+        Condition = {
+          ArnEquals = {
+            "aws:SourceArn" = aws_cloudwatch_event_rule.documents_to_notifications.arn
+          }
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_sqs_queue_policy" "documents_dlq" {
+  queue_url = aws_sqs_queue.documents_dlq.url
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "AllowEventBridgeSendMessage"
+        Effect    = "Allow"
+        Principal = { Service = "events.amazonaws.com" }
+        Action    = "sqs:SendMessage"
+        Resource  = aws_sqs_queue.documents_dlq.arn
+        Condition = {
+          ArnEquals = {
+            "aws:SourceArn" = aws_cloudwatch_event_rule.documents_to_notifications.arn
+          }
+        }
+      }
+    ]
+  })
+}

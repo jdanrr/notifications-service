@@ -62,3 +62,33 @@ output "appointments_rule_arn" {
   description = "ARN de la regla que enruta Appointments a Notifications."
   value       = aws_cloudwatch_event_rule.appointments_to_notifications.arn
 }
+
+output "documents_queue_name" {
+  description = "Nombre de la cola principal de Documents."
+  value       = aws_sqs_queue.documents.name
+}
+
+output "documents_queue_arn" {
+  description = "ARN de la cola principal de Documents."
+  value       = aws_sqs_queue.documents.arn
+}
+
+output "documents_queue_url" {
+  description = "URL de la cola principal de Documents."
+  value       = aws_sqs_queue.documents.url
+}
+
+output "documents_dlq_arn" {
+  description = "ARN de la dead-letter queue de Documents."
+  value       = aws_sqs_queue.documents_dlq.arn
+}
+
+output "documents_dlq_url" {
+  description = "URL de la dead-letter queue de Documents."
+  value       = aws_sqs_queue.documents_dlq.url
+}
+
+output "documents_rule_arn" {
+  description = "ARN de la regla que enruta Documents a Notifications."
+  value       = aws_cloudwatch_event_rule.documents_to_notifications.arn
+}

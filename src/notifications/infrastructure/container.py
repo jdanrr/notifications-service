@@ -41,18 +41,42 @@ from notifications.application.use_cases.auth.send_welcome_email import (
 from notifications.application.use_cases.auth.send_welcome_email import (
     SendWelcomeEmailUseCase,
 )
+from notifications.application.use_cases.documents.send_authorization_email import (
+    TEMPLATE_NAME as AUTHORIZATION_TEMPLATE,
+)
+from notifications.application.use_cases.documents.send_authorization_email import (
+    SendAuthorizationEmailUseCase,
+)
+from notifications.application.use_cases.documents.send_certificate_email import (
+    TEMPLATE_NAME as CERTIFICATE_TEMPLATE,
+)
+from notifications.application.use_cases.documents.send_certificate_email import (
+    SendCertificateEmailUseCase,
+)
+from notifications.application.use_cases.documents.send_medical_history_email import (
+    TEMPLATE_NAME as MEDICAL_HISTORY_TEMPLATE,
+)
+from notifications.application.use_cases.documents.send_medical_history_email import (
+    SendMedicalHistoryEmailUseCase,
+)
 from notifications.domain.notification_log import NotificationLog, NotificationStatus
 from notifications.infrastructure.config import Settings
 from notifications.infrastructure.inbound.sqs.mappers import (
     envelope_to_appointment_cancelled_command,
     envelope_to_appointment_rescheduled_command,
     envelope_to_appointment_scheduled_command,
+    envelope_to_authorization_command,
+    envelope_to_certificate_command,
+    envelope_to_medical_history_command,
     envelope_to_password_reset_command,
     envelope_to_welcome_command,
 )
 from notifications.infrastructure.inbound.sqs.poller import SqsPoller
 from notifications.infrastructure.inbound.sqs.router import EventRouter
 from notifications.infrastructure.inbound.sqs.worker import EventsWorker
+from notifications.infrastructure.outbound.attachments.s3_attachment_provider import (
+    S3AttachmentProvider,
+)
 from notifications.infrastructure.outbound.email.ses_email_sender import SesEmailSender
 from notifications.infrastructure.outbound.rendering.jinja_renderer import JinjaTemplateRenderer
 
@@ -156,6 +180,28 @@ def build_worker(settings: Settings) -> EventsWorker:
         repository=repository,
         brand=brand,
     )
+    attachments = S3AttachmentProvider(client=session.client("s3"))
+    certificate_use_case = SendCertificateEmailUseCase(
+        renderer=renderer,
+        sender=sender,
+        repository=repository,
+        brand=brand,
+        attachments=attachments,
+    )
+    authorization_use_case = SendAuthorizationEmailUseCase(
+        renderer=renderer,
+        sender=sender,
+        repository=repository,
+        brand=brand,
+        attachments=attachments,
+    )
+    medical_history_use_case = SendMedicalHistoryEmailUseCase(
+        renderer=renderer,
+        sender=sender,
+        repository=repository,
+        brand=brand,
+        attachments=attachments,
+    )
 
     router = build_router(
         welcome_use_case,
@@ -163,6 +209,9 @@ def build_worker(settings: Settings) -> EventsWorker:
         appointment_scheduled_use_case,
         appointment_rescheduled_use_case,
         appointment_cancelled_use_case,
+        certificate_use_case,
+        authorization_use_case,
+        medical_history_use_case,
     )
     dispatcher = Dispatcher(repository)
 
@@ -178,6 +227,7 @@ def build_worker(settings: Settings) -> EventsWorker:
 
 AUTH_SOURCE = "kenko.auth"
 APPOINTMENTS_SOURCE = "kenko.appointments"
+DOCUMENTS_SOURCE = "kenko.documents"
 
 
 def build_router(
@@ -186,8 +236,12 @@ def build_router(
     appointment_scheduled_use_case: SendAppointmentScheduledEmailUseCase,
     appointment_rescheduled_use_case: SendAppointmentRescheduledEmailUseCase,
     appointment_cancelled_use_case: SendAppointmentCancelledEmailUseCase,
+    certificate_use_case: SendCertificateEmailUseCase,
+    authorization_use_case: SendAuthorizationEmailUseCase,
+    medical_history_use_case: SendMedicalHistoryEmailUseCase,
 ) -> EventRouter:
-    """Registra los eventos de Authentication y Appointments que consume Notifications.
+    """Registra los eventos que consume Notifications (Authentication,
+    Appointments y Documents).
 
     Punto unico de declaracion: el test de sincronizacion compara las claves
     de este router contra `auth_detail_types` y `appointments_detail_types`
@@ -227,6 +281,24 @@ def build_router(
         "AppointmentCancelled",
         _handler(appointment_cancelled_use_case, envelope_to_appointment_cancelled_command),
         template_name=APPOINTMENT_CANCELLED_TEMPLATE,
+    )
+    router.register(
+        DOCUMENTS_SOURCE,
+        "CertificateGenerated",
+        _handler(certificate_use_case, envelope_to_certificate_command),
+        template_name=CERTIFICATE_TEMPLATE,
+    )
+    router.register(
+        DOCUMENTS_SOURCE,
+        "AuthorizationStatusChanged",
+        _handler(authorization_use_case, envelope_to_authorization_command),
+        template_name=AUTHORIZATION_TEMPLATE,
+    )
+    router.register(
+        DOCUMENTS_SOURCE,
+        "MedicalHistoryPdfGenerated",
+        _handler(medical_history_use_case, envelope_to_medical_history_command),
+        template_name=MEDICAL_HISTORY_TEMPLATE,
     )
     return router
 

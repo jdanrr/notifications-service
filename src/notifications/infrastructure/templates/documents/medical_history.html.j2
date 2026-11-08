@@ -1,0 +1,13 @@
+{# Historial médico en PDF. Requerido: user_name, file_name.
+Opcional: generated_at.
+Marca: app_name, portal_url, support_email, logo_url, current_year.
+Nota: el PDF (file_name) se envía como adjunto del correo, no como enlace. #}
+{% extends "_base.html.j2" %}
+{% block subject %}Tu historial médico está listo{% endblock %}
+{% block preheader %}Hola {{ user_name }} — tu historial médico está adjunto en este correo.{% endblock %}
+{% block content %}
+<h1 style="margin:0 0 12px 0;font-size:22px;line-height:1.3;color:#224a5b;">Hola {{ user_name }} — tu historial médico está listo</h1>
+<p style="margin:0 0 12px 0;">Adjuntamos tu historial médico <strong>{{ file_name }}</strong>{% if generated_at | default('') %} generado el {{ generated_at }}{% endif %}.</p>
+<p style="margin:0 0 12px 0;">Este documento es personal: no lo reenvíes por medios no seguros. Si no puedes abrir el adjunto, escríbenos a <a href="mailto:{{ support_email }}" style="color:#295fc3;">{{ support_email }}</a>.</p>
+<p style="margin:0;">También puedes descargarlo desde el portal: <a href="{{ portal_url }}" style="color:#295fc3;">{{ portal_url }}</a></p>
+{% endblock %}

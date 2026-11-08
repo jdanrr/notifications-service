@@ -33,6 +33,54 @@ class PasswordResetCommand:
 
 
 @dataclass(frozen=True)
+class CertificateEmailCommand:
+    """Envío del certificado generado (CertificateGenerated) con el PDF adjunto.
+
+    `bucket`/`key` ubican el PDF en S3; `file_name` es el nombre que verá el
+    usuario en el adjunto y en el cuerpo del correo.
+    """
+
+    event_id: str
+    correlation_id: str | None
+    user_name: str
+    email: str
+    file_name: str
+    bucket: str
+    key: str
+    issued_at: str | None = None
+
+
+@dataclass(frozen=True)
+class AuthorizationEmailCommand:
+    """Envío del cambio de estado de una autorización con el PDF adjunto."""
+
+    event_id: str
+    correlation_id: str | None
+    user_name: str
+    email: str
+    authorization_type: str
+    status: str
+    file_name: str
+    bucket: str
+    key: str
+    changed_at: str | None = None
+
+
+@dataclass(frozen=True)
+class MedicalHistoryEmailCommand:
+    """Envío del PDF del historial médico con el archivo adjunto."""
+
+    event_id: str
+    correlation_id: str | None
+    user_name: str
+    email: str
+    file_name: str
+    bucket: str
+    key: str
+    generated_at: str | None = None
+
+
+@dataclass(frozen=True)
 class AppointmentEmailCommand:
     """Envío del correo de una cita (agendada, reprogramada o cancelada).
 

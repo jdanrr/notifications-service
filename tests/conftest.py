@@ -66,6 +66,25 @@ def appointment_cancelled_envelope():
 
 
 @pytest.fixture
+def certificate_envelope():
+    return parse_envelope((FIXTURES_DIR / "certificate_generated.json").read_text(encoding="utf-8"))
+
+
+@pytest.fixture
+def authorization_envelope():
+    return parse_envelope(
+        (FIXTURES_DIR / "authorization_status_changed.json").read_text(encoding="utf-8")
+    )
+
+
+@pytest.fixture
+def medical_history_envelope():
+    return parse_envelope(
+        (FIXTURES_DIR / "medical_history_pdf_generated.json").read_text(encoding="utf-8")
+    )
+
+
+@pytest.fixture
 def brand() -> WelcomeBrandConfig:
     return WelcomeBrandConfig(
         app_name="Kenko",
