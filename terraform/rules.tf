@@ -72,3 +72,28 @@ resource "aws_cloudwatch_event_target" "documents" {
     arn = aws_sqs_queue.documents_dlq.arn
   }
 }
+
+# Regla de Profile. Solo los eventos con PDF para correo; ProfileCreated no
+# se enruta porque no lleva PDF ni dispara correos. Lleva el evento completo
+# a la cola (sin input_path), igual que las demás reglas.
+resource "aws_cloudwatch_event_rule" "profile_to_notifications" {
+  name           = "${var.project}-${var.environment}-profile-to-notifications"
+  description    = "Enruta los eventos con PDF de Profile hacia las colas de Notifications."
+  event_bus_name = data.aws_cloudwatch_event_bus.this.name
+  event_pattern  = local.profile_event_pattern
+}
+
+resource "aws_cloudwatch_event_target" "profile" {
+  rule           = aws_cloudwatch_event_rule.profile_to_notifications.name
+  event_bus_name = data.aws_cloudwatch_event_bus.this.name
+  arn            = aws_sqs_queue.profile.arn
+
+  retry_policy {
+    maximum_retry_attempts       = var.target_retry_attempts
+    maximum_event_age_in_seconds = var.target_max_event_age
+  }
+
+  dead_letter_config {
+    arn = aws_sqs_queue.profile_dlq.arn
+  }
+}

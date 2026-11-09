@@ -21,12 +21,20 @@ lo referencia con un `data` source, nunca lo crea.
 | Regla de EventBridge | `kenko-dev-documents-to-notifications` |
 | Cola principal SQS | `kenko-dev-notifications-documents` |
 | Dead-letter queue | `kenko-dev-notifications-documents-dlq` |
+| Regla de EventBridge | `kenko-dev-profile-to-notifications` |
+| Cola principal SQS | `kenko-dev-notifications-profile` |
+| Dead-letter queue | `kenko-dev-notifications-profile-dlq` |
 
 | Evento (`source` / `detail-type`) | Regla | Cola | DLQ |
 |---|---|---|---|
 | `kenko.auth` / `UserRegistered`, `PasswordResetRequested` | `kenko-dev-auth-to-notifications` | `kenko-dev-notifications-authentication` | `kenko-dev-notifications-authentication-dlq` |
 | `kenko.appointments` / `AppointmentScheduled`, `AppointmentRescheduled`, `AppointmentCancelled` | `kenko-dev-appointments-to-notifications` | `kenko-dev-notifications-appointments` | `kenko-dev-notifications-appointments-dlq` |
 | `kenko.documents` / `AuthorizationStatusChanged`, `CertificateGenerated`, `MedicalHistoryPdfGenerated` | `kenko-dev-documents-to-notifications` | `kenko-dev-notifications-documents` | `kenko-dev-notifications-documents-dlq` |
+| `kenko.profile` / `AuthorizationStatusChanged`, `CertificateGenerated`, `MedicalHistoryPdfGenerated` | `kenko-dev-profile-to-notifications` | `kenko-dev-notifications-profile` | `kenko-dev-notifications-profile-dlq` |
+
+`DocumentsUpdated` (`kenko.documents`) no se enruta a ninguna cola: es un evento
+de auditoría que nadie consume. `ProfileCreated` (`kenko.profile`) tampoco se
+enruta: no lleva PDF ni dispara correos. Las autorizaciones no publican evento.
 
 `DocumentsUpdated` (`kenko.documents`) no se enruta a ninguna cola: es un evento
 de auditoría que nadie consume.
@@ -80,6 +88,16 @@ y aplicar. La regla se reconstruye sola; no toca editar recursos.
 documents_detail_types = ["AuthorizationStatusChanged", "CertificateGenerated", "MedicalHistoryPdfGenerated"]
 ```
 
+## Agregar un evento de Profile
+
+Agregar el `detail-type` a `profile_detail_types` en el `.tfvars` del ambiente
+y aplicar. Solo entran eventos con PDF para correo; `ProfileCreated` no se
+agrega porque no lleva PDF ni dispara correos.
+
+```hcl
+profile_detail_types = ["AuthorizationStatusChanged", "CertificateGenerated", "MedicalHistoryPdfGenerated"]
+```
+
 ## Permiso pendiente: lectura de PDFs en S3
 
 El worker necesitará `s3:GetObject` sobre el bucket de Documents para descargar
@@ -97,6 +115,22 @@ aquí. Cuando se defina dónde corre el worker, agregarle:
 
 El nombre del bucket está como variable `documents_files_bucket` (por defecto
 `kenko-dev-documents-files`); confirmar con el equipo de Documents el nombre real.
+
+El worker también necesitará `s3:GetObject` sobre el bucket de Profile para los
+PDFs que publican sus eventos (`CertificateGenerated` y
+`MedicalHistoryPdfGenerated`):
+
+```json
+{
+  "Effect": "Allow",
+  "Action": ["s3:GetObject"],
+  "Resource": ["arn:aws:s3:::kenko-dev-documents-files/*"]
+}
+```
+
+Los PDFs de Profile viven en el mismo bucket de Documents
+(`kenko-dev-documents-files`, confirmado con el equipo de Profile), así que
+con el permiso de arriba quedan cubiertos ambos productores.
 
 ## Verificación
 

@@ -272,3 +272,93 @@ resource "aws_sqs_queue_policy" "documents_dlq" {
     ]
   })
 }
+
+# Consumo de Profile. Duplica el esquema de Auth con el productor
+# "profile": mismos parámetros, cifrado y permisos, otra regla.
+# Solo enruta eventos con PDF para correo (CertificateGenerated y
+# MedicalHistoryPdfGenerated). ProfileCreated se publica pero no se consume:
+# no lleva PDF ni dispara correos. Las autorizaciones no publican evento.
+locals {
+  profile_producer   = "profile"
+  profile_queue_name = "${var.project}-${var.environment}-${local.consumer}-${local.profile_producer}"
+  profile_dlq_name   = "${local.profile_queue_name}-dlq"
+  profile_queue_arn  = "arn:aws:sqs:${var.region}:${data.aws_caller_identity.this.account_id}:${local.profile_queue_name}"
+  profile_event_pattern = jsonencode({
+    source      = [var.profile_source]
+    detail-type = var.profile_detail_types
+  })
+}
+
+resource "aws_sqs_queue" "profile_dlq" {
+  name                      = local.profile_dlq_name
+  message_retention_seconds = var.dlq_message_retention_seconds
+
+  # Cifrado en reposo gestionado por SQS (SSE-SQS), sin gestión de claves.
+  sqs_managed_sse_enabled = true
+
+  # Solo la cola principal puede enviar mensajes a esta DLQ.
+  redrive_allow_policy = jsonencode({
+    redrivePermission = "byQueue"
+    sourceQueueArns   = [local.profile_queue_arn]
+  })
+}
+
+resource "aws_sqs_queue" "profile" {
+  name                       = local.profile_queue_name
+  visibility_timeout_seconds = var.visibility_timeout_seconds
+  message_retention_seconds  = var.message_retention_seconds
+  receive_wait_time_seconds  = var.receive_wait_time_seconds
+
+  sqs_managed_sse_enabled = true
+
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.profile_dlq.arn
+    maxReceiveCount     = var.max_receive_count
+  })
+}
+
+# Mínimo privilegio: solo EventBridge puede hacer SendMessage, y solo si el
+# origen es exactamente la regla de Profile.
+resource "aws_sqs_queue_policy" "profile" {
+  queue_url = aws_sqs_queue.profile.url
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "AllowEventBridgeSendMessage"
+        Effect    = "Allow"
+        Principal = { Service = "events.amazonaws.com" }
+        Action    = "sqs:SendMessage"
+        Resource  = aws_sqs_queue.profile.arn
+        Condition = {
+          ArnEquals = {
+            "aws:SourceArn" = aws_cloudwatch_event_rule.profile_to_notifications.arn
+          }
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_sqs_queue_policy" "profile_dlq" {
+  queue_url = aws_sqs_queue.profile_dlq.url
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "AllowEventBridgeSendMessage"
+        Effect    = "Allow"
+        Principal = { Service = "events.amazonaws.com" }
+        Action    = "sqs:SendMessage"
+        Resource  = aws_sqs_queue.profile_dlq.arn
+        Condition = {
+          ArnEquals = {
+            "aws:SourceArn" = aws_cloudwatch_event_rule.profile_to_notifications.arn
+          }
+        }
+      }
+    ]
+  })
+}

@@ -228,6 +228,7 @@ def build_worker(settings: Settings) -> EventsWorker:
 AUTH_SOURCE = "kenko.auth"
 APPOINTMENTS_SOURCE = "kenko.appointments"
 DOCUMENTS_SOURCE = "kenko.documents"
+PROFILE_SOURCE = "kenko.profile"
 
 
 def build_router(
@@ -296,6 +297,27 @@ def build_router(
     )
     router.register(
         DOCUMENTS_SOURCE,
+        "MedicalHistoryPdfGenerated",
+        _handler(medical_history_use_case, envelope_to_medical_history_command),
+        template_name=MEDICAL_HISTORY_TEMPLATE,
+    )
+    # Profile publica los mismos eventos con PDF que Documents (misma forma,
+    # distinto source): se reutilizan schemas y handlers. ProfileCreated no se
+    # registra porque no lleva PDF ni dispara correos.
+    router.register(
+        PROFILE_SOURCE,
+        "AuthorizationStatusChanged",
+        _handler(authorization_use_case, envelope_to_authorization_command),
+        template_name=AUTHORIZATION_TEMPLATE,
+    )
+    router.register(
+        PROFILE_SOURCE,
+        "CertificateGenerated",
+        _handler(certificate_use_case, envelope_to_certificate_command),
+        template_name=CERTIFICATE_TEMPLATE,
+    )
+    router.register(
+        PROFILE_SOURCE,
         "MedicalHistoryPdfGenerated",
         _handler(medical_history_use_case, envelope_to_medical_history_command),
         template_name=MEDICAL_HISTORY_TEMPLATE,

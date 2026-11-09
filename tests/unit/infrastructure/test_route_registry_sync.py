@@ -1,7 +1,8 @@
 """Sincronizacion entre Terraform y el router de la aplicacion.
 
 Terraform decide QUE eventos llegan a cada cola (`auth_detail_types`,
-`appointments_detail_types` y `documents_detail_types`) y el container decide QUE eventos sabemos
+`appointments_detail_types`, `documents_detail_types` y `profile_detail_types`)
+y el container decide QUE eventos sabemos
 procesar (build_router). Son dos lados del mismo contrato y pueden
 desincronizarse en silencio:
 
@@ -48,6 +49,7 @@ from notifications.infrastructure.container import (
     APPOINTMENTS_SOURCE,
     AUTH_SOURCE,
     DOCUMENTS_SOURCE,
+    PROFILE_SOURCE,
     build_router,
 )
 from notifications.infrastructure.outbound.rendering.jinja_renderer import (
@@ -67,6 +69,7 @@ TFVARS_BY_SOURCE = {
     AUTH_SOURCE: "auth_detail_types",
     APPOINTMENTS_SOURCE: "appointments_detail_types",
     DOCUMENTS_SOURCE: "documents_detail_types",
+    PROFILE_SOURCE: "profile_detail_types",
 }
 
 
@@ -163,9 +166,44 @@ def test_fuentes_coinciden_con_terraform():
         _source_variable_from_terraform("auth_source"),
         _source_variable_from_terraform("appointments_source"),
         _source_variable_from_terraform("documents_source"),
+        _source_variable_from_terraform("profile_source"),
     }
     registered = set(registered_by_source())
 
     assert registered == expected, (
         f"router escucha {sorted(registered)} pero Terraform usa {sorted(expected)}"
+    )
+
+
+def test_profile_reutiliza_handlers_de_documents():
+    """Profile publica los mismos eventos con PDF: mismo handler y plantilla.
+
+    `ProfileCreated` no debe tener ruta: no lleva PDF ni dispara correos.
+    """
+    router = build_test_router()
+
+    authorization = router.route(_envelope(PROFILE_SOURCE, "AuthorizationStatusChanged"))
+    assert authorization is not None
+    assert authorization.template_name == "authorization"
+
+    certificate = router.route(_envelope(PROFILE_SOURCE, "CertificateGenerated"))
+    assert certificate is not None
+    assert certificate.template_name == "certificate"
+
+    medical_history = router.route(_envelope(PROFILE_SOURCE, "MedicalHistoryPdfGenerated"))
+    assert medical_history is not None
+    assert medical_history.template_name == "medical_history"
+
+    assert router.route(_envelope(PROFILE_SOURCE, "ProfileCreated")) is None
+
+
+def _envelope(source: str, detail_type: str):
+    from notifications.infrastructure.inbound.sqs.envelope import Envelope
+
+    return Envelope(
+        source=source,
+        detail_type=detail_type,
+        event_id="evt-test",
+        correlation_id=None,
+        detail={},
     )

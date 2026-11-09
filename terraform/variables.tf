@@ -64,6 +64,24 @@ variable "documents_files_bucket" {
   default     = "kenko-dev-documents-files"
 }
 
+variable "profile_source" {
+  description = "Valor del campo `source` del sobre de EventBridge emitido por Profile."
+  type        = string
+  default     = "kenko.profile"
+}
+
+variable "profile_detail_types" {
+  description = "Lista de `detail-type` de Profile que enruta la regla. Solo los que traen PDF para correo; ProfileCreated no se consume."
+  type        = list(string)
+  default     = ["AuthorizationStatusChanged", "CertificateGenerated", "MedicalHistoryPdfGenerated"]
+}
+
+variable "profile_files_bucket" {
+  description = "Nombre del bucket de S3 donde viven los PDFs de Profile. Solo documenta el permiso s3:GetObject que necesitará el worker; no crea ningún recurso. Confirmado con el equipo de Profile."
+  type        = string
+  default     = "kenko-dev-documents-files"
+}
+
 variable "visibility_timeout_seconds" {
   description = "Segundos durante los que un mensaje entregado queda oculto. Debe ser mayor que el tiempo máximo que tarda el worker en enviar el correo con SES."
   type        = number

@@ -92,3 +92,33 @@ output "documents_rule_arn" {
   description = "ARN de la regla que enruta Documents a Notifications."
   value       = aws_cloudwatch_event_rule.documents_to_notifications.arn
 }
+
+output "profile_queue_name" {
+  description = "Nombre de la cola principal de Profile."
+  value       = aws_sqs_queue.profile.name
+}
+
+output "profile_queue_arn" {
+  description = "ARN de la cola principal de Profile."
+  value       = aws_sqs_queue.profile.arn
+}
+
+output "profile_queue_url" {
+  description = "URL de la cola principal de Profile."
+  value       = aws_sqs_queue.profile.url
+}
+
+output "profile_dlq_arn" {
+  description = "ARN de la dead-letter queue de Profile."
+  value       = aws_sqs_queue.profile_dlq.arn
+}
+
+output "profile_dlq_url" {
+  description = "URL de la dead-letter queue de Profile."
+  value       = aws_sqs_queue.profile_dlq.url
+}
+
+output "profile_rule_arn" {
+  description = "ARN de la regla que enruta Profile a Notifications."
+  value       = aws_cloudwatch_event_rule.profile_to_notifications.arn
+}
